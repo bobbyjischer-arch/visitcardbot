@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>O.R.I.O.N. Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #00d4ff, #0099ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .status-bar {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .status-card {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px 20px;
+            flex: 1;
+            min-width: 200px;
+        }
+        .status-card h3 {
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+        .status-card .value {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        .online { color: #00ff88; }
+        .offline { color: #ff4444; }
+        .warning { color: #ffaa00; }
+        .alert-banner {
+            background: linear-gradient(135deg, #ff0044, #cc0033);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            display: none;
+            animation: pulse 2s infinite;
+        }
+        .alert-banner.active { display: block; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        .map-container {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            min-height: 400px;
+        }
+        .location-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .location-item {
+            background: #222;
+            border-left: 3px solid #00d4ff;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+        .timestamp {
+            color: #888;
+            font-size: 0.8rem;
+        }
+        .indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .indicator.online { background: #00ff88; box-shadow: 0 0 10px #00ff88; }
+        .indicator.offline { background: #ff4444; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ O.R.I.O.N. Dashboard</h1>
+        <p style="color: #666; margin-bottom: 20px;">Operational Response & Intelligence Observation Network</p>
+
+        <div class="alert-banner" id="alertBanner">
+            <h2>🚨 ТРЕВОГА АКТИВНА</h2>
+            <p id="alertReason"></p>
+            <p id="alertLocation"></p>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-card">
+                <h3>Система</h3>
+                <div class="value online">
+                    <span class="indicator online"></span>
+                    Online
+                </div>
+            </div>
+            <div class="status-card">
+                <h3>Telegram Bot</h3>
+                <div class="value" id="botStatus">
+                    <span class="indicator offline"></span>
+                    <span id="botStatusText">Offline</span>
+                </div>
+            </div>
+            <div class="status-card">
+                <h3>Точек сохранено</h3>
+                <div class="value" id="pointsCount">{{ points_count }}</div>
+            </div>
+            <div class="status-card">
+                <h3>Последнее обновление</h3>
+                <div class="value" id="lastUpdate" style="font-size: 1rem;">
+                    {% if last_location %}
+                        {{ last_location.timestamp[:19] }}
+                    {% else %}
+                        Нет данных
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="map-container">
+            <h2 style="margin-bottom: 15px;">📍 История локаций</h2>
+            <div class="location-list" id="locationList">
+                {% if last_location %}
+                <div class="location-item">
+                    <div>📍 {{ "%.5f"|format(last_location.latitude) }}, {{ "%.5f"|format(last_location.longitude) }}</div>
+                    <div class="timestamp">{{ last_location.timestamp }} • {{ last_location.source }}</div>
+                </div>
+                {% else %}
+                <p style="color: #666;">Ожидание данных...</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div style="margin-top: 30px; padding: 20px; background: #1a1a1a; border-radius: 8px; border: 1px solid #333;">
+            <h3 style="margin-bottom: 10px;">📡 Лог событий</h3>
+            <div id="eventLog" style="font-family: 'Courier New', monospace; font-size: 0.85rem; color: #888; max-height: 200px; overflow-y: auto;">
+                <div>[{{ "now"|default("") }}] Система запущена</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const eventSource = new EventSource('/events/stream');
+        const eventLog = document.getElementById('eventLog');
+        const locationList = document.getElementById('locationList');
+        const alertBanner = document.getElementById('alertBanner');
+
+        function log(msg) {
+            const time = new Date().toLocaleTimeString('ru-RU');
+            const div = document.createElement('div');
+            div.textContent = `[${time}] ${msg}`;
+            eventLog.insertBefore(div, eventLog.firstChild);
+            if (eventLog.children.length > 50) {
+                eventLog.removeChild(eventLog.lastChild);
+            }
+        }
+
+        eventSource.onopen = () => {
+            log('✅ Подключено к серверу');
+        };
+
+        eventSource.onerror = () => {
+            log('❌ Ошибка подключения, переподключение...');
+        };
+
+        eventSource.onmessage = (e) => {
+            if (e.data.startsWith(':')) return; // ping
+
+            try {
+                const event = JSON.parse(e.data);
+                handleEvent(event);
+            } catch (err) {
+                console.error('Parse error:', err);
+            }
+        };
+
+        function handleEvent(event) {
+            const { type, data } = event;
+
+            switch (type) {
+                case 'init':
+                    log(`📊 Инициализация: ${data.points} точек`);
+                    updateBotStatus(data.bot);
+                    if (data.alert) showAlert(data.alert);
+                    break;
+
+                case 'location':
+                    log(`📍 Новая локация: ${data.latitude.toFixed(5)}, ${data.longitude.toFixed(5)}`);
+                    addLocationToList(data);
+                    document.getElementById('pointsCount').textContent = parseInt(document.getElementById('pointsCount').textContent) + 1;
+                    break;
+
+                case 'alert':
+                    log(`🚨 ТРЕВОГА: ${data.reason}`);
+                    showAlert(data);
+                    break;
+
+                case 'alert_cleared':
+                    log('✅ Тревога снята');
+                    alertBanner.classList.remove('active');
+                    break;
+
+                case 'sos':
+                    log(`🆘 SOS от ${data.source}`);
+                    break;
+
+                case 'bot_connected':
+                    log(`🤖 Бот подключен (переподключение #${data.reconnects})`);
+                    updateBotStatus({ online: true, status: 'online' });
+                    break;
+
+                case 'bot_status':
+                    updateBotStatus({ online: true, status: data.status });
+                    break;
+
+                default:
+                    log(`📬 Событие: ${type}`);
+            }
+        }
+
+        function updateBotStatus(bot) {
+            const statusEl = document.getElementById('botStatus');
+            const textEl = document.getElementById('botStatusText');
+            const indicator = statusEl.querySelector('.indicator');
+
+            if (bot.online && !bot.stale) {
+                indicator.className = 'indicator online';
+                textEl.textContent = 'Online';
+                statusEl.className = 'value online';
+            } else {
+                indicator.className = 'indicator offline';
+                textEl.textContent = 'Offline';
+                statusEl.className = 'value offline';
+            }
+        }
+
+        function showAlert(alert) {
+            alertBanner.classList.add('active');
+            document.getElementById('alertReason').textContent = alert.reason;
+            document.getElementById('alertLocation').textContent =
+                `📍 ${alert.latitude.toFixed(5)}, ${alert.longitude.toFixed(5)}`;
+        }
+
+        function addLocationToList(loc) {
+            const div = document.createElement('div');
+            div.className = 'location-item';
+            div.innerHTML = `
+                <div>📍 ${loc.latitude.toFixed(5)}, ${loc.longitude.toFixed(5)}</div>
+                <div class="timestamp">${loc.timestamp} • ${loc.source}</div>
+            `;
+            locationList.insertBefore(div, locationList.firstChild);
+            if (locationList.children.length > 20) {
+                locationList.removeChild(locationList.lastChild);
+            }
+        }
+
+        log('🚀 Dashboard загружен');
+    </script>
+</body>
+</html>
