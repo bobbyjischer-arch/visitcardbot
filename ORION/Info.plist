@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>MyFiles</string>
+	<key>CFBundleDisplayName</key>
+	<string>My Files</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.stark.orion</string>
+	<key>CFBundleVersion</key>
+	<string>2</string>
+	<key>CFBundleShortVersionString</key>
+	<string>2.0</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchScreen</key>
+	<dict/>
+
+	<!-- Геолокация -->
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>O.R.I.O.N. отслеживает местоположение в фоне для обеспечения безопасности.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>O.R.I.O.N. нужна геолокация всегда для мониторинга безопасности.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>O.R.I.O.N. использует геолокацию для отправки координат на сервер.</string>
+
+	<!-- Уведомления и фон -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+
+	<!-- App Group для виджета -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.stark.orion</string>
+	</array>
+
+	<!-- Разрешить HTTP для локального сервера -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+	</dict>
+</dict>
+</plist>
